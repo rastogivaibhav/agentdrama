@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+outputs/
+characters/
+.hypothesis/
+*.egg-info/
+dist/
+build/
+.env
+*.wav
