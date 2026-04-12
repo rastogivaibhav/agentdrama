@@ -190,7 +190,7 @@ class GenerationConfig:
     num_exchanges: int         # 4–12
     tts_enabled: bool
     scene_mode: str = COMEDY_MODE
-    model: str = "nvidia/nemotron-3-nano-4b"
+    model: str = "google/gemma-4-26b-a4b"
     max_tokens: int = 150
     temperature: float = 0.7
     transcript_window: int = 4
@@ -1352,7 +1352,7 @@ if __name__ == "__main__":
 
     # 3. Initialize OllamaClient and check availability
     _ollama = OllamaClient(
-        model="nvidia/nemotron-3-nano-4b",
+        model="google/gemma-4-26b-a4b",
         base_url="http://localhost:1234",
         max_tokens=150,
         temperature=0.7,
