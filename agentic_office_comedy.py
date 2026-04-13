@@ -433,41 +433,6 @@ class CharacterLoader:
         return False
 
 
-        """Parse and validate a single character JSON file.
-
-        Returns a Character on success, or None if any required field is missing
-        or the file cannot be parsed as valid JSON.
-        """
-        import json
-
-        try:
-            with path.open(encoding="utf-8") as fh:
-                data = json.load(fh)
-        except json.JSONDecodeError as exc:
-            logger.warning("Invalid JSON in character file %s: %s", path, exc)
-            return None
-
-        required_fields = ("name", "show", "personality", "speaking_style", "catchphrases", "kokoro_voice")
-        for field_name in required_fields:
-            if field_name not in data:
-                logger.warning("Character file %s is missing required field '%s'", path, field_name)
-                return None
-
-        # catchphrases must be a non-empty list
-        if not isinstance(data["catchphrases"], list) or len(data["catchphrases"]) == 0:
-            logger.warning("Character file %s: 'catchphrases' must be a non-empty list", path)
-            return None
-
-        return Character(
-            name=data["name"],
-            show=data["show"],
-            personality=data["personality"],
-            speaking_style=data["speaking_style"],
-            catchphrases=data["catchphrases"],
-            kokoro_voice=data["kokoro_voice"],
-        )
-
-
 # ---------------------------------------------------------------------------
 # OllamaClient
 # ---------------------------------------------------------------------------
