@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentdrama-app
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./characters:/app/characters
+      - ./outputs:/app/outputs
+    environment:
+      # ═══════════════════════════════════════════════════════════════════
+      # Choose LLM Backend: 'ollama', 'lmstudio', 'nim', or 'gemini'
+      # ═══════════════════════════════════════════════════════════════════
+      LLM_BACKEND: lmstudio
+
+      # ───────────────────────────────────────────────────────────────────
+      # LOCAL BACKENDS (Ollama / LM Studio)
+      # ───────────────────────────────────────────────────────────────────
+
+      # Ollama (LLM_BACKEND=ollama)
+      # Requirements: ollama serve + ollama pull <model>
+      OLLAMA_BASE_URL: http://localhost:11434
+      OLLAMA_MODEL: qwen2.5:7b
+
+      # LM Studio (LLM_BACKEND=lmstudio)
+      # Download: https://lmstudio.ai
+      LM_STUDIO_URL: http://localhost:1234
+      LM_STUDIO_MODEL: google/gemma-4-26b-a4b
+
+      # ───────────────────────────────────────────────────────────────────
+      # CLOUD BACKENDS (NIM / Gemini)
+      # ───────────────────────────────────────────────────────────────────
+
+      # NVIDIA NIM (LLM_BACKEND=nim)
+      # Get free API key: https://build.nvidia.com/
+      # Models: meta/llama-3.1-70b-instruct, nvidia/nemotron-4-340b-instruct, etc.
+      # NIM_API_KEY: your_api_key_here
+      # NIM_BASE_URL: https://integrate.api.nvidia.com/v1
+      # NIM_MODEL: meta/llama-3.1-70b-instruct
+
+      # Google Gemini (LLM_BACKEND=gemini)
+      # Get free API key: https://ai.google.dev/
+      # Models: gemini-2.0-flash, gemini-1.5-pro, gemini-1.5-flash
+      # GEMINI_API_KEY: your_api_key_here
+      # GEMINI_MODEL: gemini-2.0-flash
+
+      # ───────────────────────────────────────────────────────────────────
+      # LLM Parameters
+      # ───────────────────────────────────────────────────────────────────
+      LLM_MAX_TOKENS: 150
+      LLM_TEMPERATURE: 0.7
+      LLM_TIMEOUT: 60.0
+
+      # ───────────────────────────────────────────────────────────────────
+      # Gradio Settings
+      # ───────────────────────────────────────────────────────────────────
+      GRADIO_SERVER_NAME: 0.0.0.0
+      GRADIO_SERVER_PORT: 7860
+
+    restart: unless-stopped
+    # Uncomment to use .env file
+    # env_file: .env

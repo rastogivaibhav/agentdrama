@@ -51,6 +51,7 @@ Then open http://localhost:7860 in your browser.
 
 import json
 import logging
+import os
 import re
 import socket
 import urllib.error
@@ -73,10 +74,10 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Directory setup — created at module load time so every component can assume
-# these paths exist.  exist_ok=True makes repeated imports / restarts safe.
+# these paths exist. Use environment variables for Docker compatibility.
 # ---------------------------------------------------------------------------
-CHARACTERS_DIR = Path("characters")
-OUTPUTS_DIR = Path("outputs")
+CHARACTERS_DIR = Path(os.getenv("CHARACTERS_DIR", "characters"))
+OUTPUTS_DIR = Path(os.getenv("OUTPUTS_DIR", "outputs"))
 
 CHARACTERS_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -434,15 +435,15 @@ class CharacterLoader:
 
 
 # ---------------------------------------------------------------------------
-# OllamaClient
+# LLM Clients
 # ---------------------------------------------------------------------------
 
 class OllamaClient:
-    """HTTP wrapper supporting both Ollama (/api/generate) and OpenAI-compatible
-    servers such as LM Studio (/v1/chat/completions).
+    """HTTP wrapper supporting multiple backends:
+    - "ollama": Native Ollama /api/generate API
+    - "lmstudio": LM Studio /v1/chat/completions (OpenAI-compatible)
+    - "nim": NVIDIA NIM /v1/chat/completions (OpenAI-compatible with auth)
 
-    Set backend="lmstudio" (or any OpenAI-compatible server) to use the chat
-    completions API.  backend="ollama" uses the native Ollama generate API.
     Uses only Python stdlib — no external HTTP libraries required.
     """
 
@@ -453,7 +454,8 @@ class OllamaClient:
         max_tokens: int,
         temperature: float,
         timeout: float,
-        backend: str = "lmstudio",  # "ollama" | "lmstudio"
+        backend: str = "lmstudio",  # "ollama" | "lmstudio" | "nim"
+        api_key: str | None = None,  # Required for NIM
     ) -> None:
         self.model = model
         self.base_url = base_url.rstrip("/")
@@ -461,12 +463,17 @@ class OllamaClient:
         self.temperature = temperature
         self.timeout = timeout
         self.backend = backend
+        self.api_key = api_key
 
     def generate(self, prompt: str) -> str:
         """Send a prompt and return the generated text (single-string interface)."""
         if self.backend == "ollama":
             return self._generate_ollama(prompt)
-        return self._generate_openai(prompt)
+        elif self.backend in ("lmstudio", "nim"):
+            return self._generate_openai(prompt)
+        else:
+            logger.error("Unknown backend: %s", self.backend)
+            return "[generation failed: unknown backend]"
 
     def generate_chat(self, system: str, user: str) -> str:
         """Send a system+user message pair (chat completions interface).
@@ -475,10 +482,14 @@ class OllamaClient:
         """
         if self.backend == "ollama":
             return self._generate_ollama(f"{system}\n\n{user}")
-        return self._generate_openai(user, system=system)
+        elif self.backend in ("lmstudio", "nim"):
+            return self._generate_openai(user, system=system)
+        else:
+            logger.error("Unknown backend: %s", self.backend)
+            return "[generation failed: unknown backend]"
 
     def _generate_openai(self, prompt: str, system: str | None = None) -> str:
-        """POST to /v1/chat/completions (LM Studio / OpenAI-compatible)."""
+        """POST to /v1/chat/completions (LM Studio / NIM / OpenAI-compatible)."""
         url = f"{self.base_url}/v1/chat/completions"
         messages = []
         if system:
@@ -492,37 +503,46 @@ class OllamaClient:
             "stream": False,
         }
         body = json.dumps(payload).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        # Add API key for NIM if provided
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         req = urllib.request.Request(
             url,
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as response:
                 raw = response.read()
         except urllib.error.HTTPError as exc:
-            logger.error("LM Studio returned HTTP %d for model '%s'", exc.code, self.model)
+            backend_name = self.backend.upper()
+            logger.error("%s returned HTTP %d for model '%s'", backend_name, exc.code, self.model)
             return f"[generation failed: HTTP {exc.code}]"
         except urllib.error.URLError as exc:
+            backend_name = self.backend.upper()
             reason = exc.reason
             if isinstance(reason, socket.timeout) or "timed out" in str(reason).lower():
-                logger.error("LM Studio request timed out after %.1fs", self.timeout)
+                logger.error("%s request timed out after %.1fs", backend_name, self.timeout)
                 return "[generation timed out]"
-            logger.error("LM Studio connection error: %s", exc)
-            return "[connection error: LM Studio unavailable]"
+            logger.error("%s connection error: %s", backend_name, exc)
+            return f"[connection error: {backend_name} unavailable]"
         except socket.timeout:
-            logger.error("LM Studio request timed out (socket)")
+            backend_name = self.backend.upper()
+            logger.error("%s request timed out (socket)", backend_name)
             return "[generation timed out]"
         except OSError as exc:
-            logger.error("LM Studio I/O error: %s", exc)
-            return "[connection error: LM Studio unavailable]"
+            backend_name = self.backend.upper()
+            logger.error("%s I/O error: %s", backend_name, exc)
+            return f"[connection error: {backend_name} unavailable]"
 
         try:
             data = json.loads(raw)
             return data["choices"][0]["message"]["content"].strip()
         except (json.JSONDecodeError, KeyError, IndexError) as exc:
-            logger.error("Failed to parse LM Studio response: %s", exc)
+            backend_name = self.backend.upper()
+            logger.error("Failed to parse %s response: %s", backend_name, exc)
             return "[generation failed: invalid response]"
 
     def _generate_ollama(self, prompt: str) -> str:
@@ -574,11 +594,16 @@ class OllamaClient:
     def is_available(self) -> bool:
         """Check whether the LLM server is reachable.
 
-        For LM Studio hits /v1/models; for Ollama hits /.
+        For LM Studio/NIM hits /v1/models; for Ollama hits /.
         Returns True on success, False on any exception — never raises.
         """
-        url = f"{self.base_url}/v1/models" if self.backend != "ollama" else f"{self.base_url}/"
+        if self.backend == "ollama":
+            url = f"{self.base_url}/"
+        else:
+            url = f"{self.base_url}/v1/models"
         req = urllib.request.Request(url, method="GET")
+        if self.api_key:
+            req.add_header("Authorization", f"Bearer {self.api_key}")
         try:
             with urllib.request.urlopen(req, timeout=5) as response:
                 _ = response.read()
@@ -586,6 +611,95 @@ class OllamaClient:
             return True
         except Exception as exc:
             logger.warning("LLM server not reachable at %s: %s", self.base_url, exc)
+            return False
+
+
+class GeminiClient:
+    """Google Gemini API client.
+
+    Requires GOOGLE_API_KEY environment variable or api_key parameter.
+    Uses the Gemini 2.0 Flash model by default.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gemini-2.0-flash",
+        max_tokens: int = 150,
+        temperature: float = 0.7,
+        timeout: float = 60.0,
+    ) -> None:
+        if not api_key:
+            raise ValueError("Google API key is required for Gemini")
+        self.api_key = api_key
+        self.model = model
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.timeout = timeout
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+
+    def generate_chat(self, system: str, user: str) -> str:
+        """Send a system+user message pair to Gemini API."""
+        url = f"{self.base_url}/chat/completions?key={self.api_key}"
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+        }
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as response:
+                raw = response.read()
+        except urllib.error.HTTPError as exc:
+            logger.error("Gemini API returned HTTP %d for model '%s'", exc.code, self.model)
+            return f"[generation failed: HTTP {exc.code}]"
+        except urllib.error.URLError as exc:
+            reason = exc.reason
+            if isinstance(reason, socket.timeout) or "timed out" in str(reason).lower():
+                logger.error("Gemini API request timed out after %.1fs", self.timeout)
+                return "[generation timed out]"
+            logger.error("Gemini API connection error: %s", exc)
+            return "[connection error: Gemini API unavailable]"
+        except socket.timeout:
+            logger.error("Gemini API request timed out (socket)")
+            return "[generation timed out]"
+        except OSError as exc:
+            logger.error("Gemini API I/O error: %s", exc)
+            return "[connection error: Gemini API unavailable]"
+
+        try:
+            data = json.loads(raw)
+            return data["choices"][0]["message"]["content"].strip()
+        except (json.JSONDecodeError, KeyError, IndexError) as exc:
+            logger.error("Failed to parse Gemini API response: %s", exc)
+            return "[generation failed: invalid response]"
+
+    def is_available(self) -> bool:
+        """Check whether the Gemini API is reachable.
+
+        Returns True on success, False on any exception — never raises.
+        """
+        url = f"{self.base_url}/models?key={self.api_key}"
+        req = urllib.request.Request(url, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                _ = response.read()
+            logger.debug("Gemini API is reachable")
+            return True
+        except Exception as exc:
+            logger.warning("Gemini API not reachable: %s", exc)
             return False
 
 
@@ -1315,18 +1429,96 @@ if __name__ == "__main__":
     except ImportError:
         logger.warning("Kokoro not installed; TTS disabled.")
 
-    # 3. Initialize OllamaClient and check availability
-    _ollama = OllamaClient(
-        model="google/gemma-4-26b-a4b",
-        base_url="http://localhost:1234",
-        max_tokens=150,
-        temperature=0.7,
-        timeout=60.0,
-        backend="lmstudio",
-    )
+    # 3. Initialize LLM client with explicit backend choice
+    llm_backend = os.getenv("LLM_BACKEND", "lmstudio").lower()
+    max_tokens = int(os.getenv("LLM_MAX_TOKENS", "150"))
+    temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+    timeout = float(os.getenv("LLM_TIMEOUT", "60.0"))
+
+    _ollama = None  # Can be OllamaClient or GeminiClient
+    _ollama_available = False
+    backend_name = "Unknown"
+
+    if llm_backend == "ollama":
+        # Use Ollama backend
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+        _ollama = OllamaClient(
+            model=model,
+            base_url=base_url,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+            backend="ollama",
+        )
+        backend_name = f"Ollama ({model})"
+
+    elif llm_backend == "lmstudio":
+        # Use LM Studio backend (OpenAI-compatible)
+        base_url = os.getenv("LM_STUDIO_URL", "http://localhost:1234")
+        model = os.getenv("LM_STUDIO_MODEL", "google/gemma-4-26b-a4b")
+        _ollama = OllamaClient(
+            model=model,
+            base_url=base_url,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+            backend="lmstudio",
+        )
+        backend_name = f"LM Studio ({model})"
+
+    elif llm_backend == "nim":
+        # Use NVIDIA NIM backend (OpenAI-compatible with API key)
+        base_url = os.getenv("NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+        model = os.getenv("NIM_MODEL", "meta/llama-3.1-70b-instruct")
+        api_key = os.getenv("NIM_API_KEY")
+        if not api_key:
+            logger.error("NIM_API_KEY environment variable is required for NIM backend")
+            raise ValueError("NIM_API_KEY is required")
+        _ollama = OllamaClient(
+            model=model,
+            base_url=base_url,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+            backend="nim",
+            api_key=api_key,
+        )
+        backend_name = f"NVIDIA NIM ({model})"
+
+    elif llm_backend == "gemini":
+        # Use Google Gemini API backend
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            logger.error("GEMINI_API_KEY environment variable is required for Gemini backend")
+            raise ValueError("GEMINI_API_KEY is required")
+        model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        _ollama = GeminiClient(
+            api_key=api_key,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+        )
+        backend_name = f"Google Gemini ({model})"
+
+    else:
+        logger.error(
+            "Invalid LLM_BACKEND: %s. Must be 'ollama', 'lmstudio', 'nim', or 'gemini'",
+            llm_backend,
+        )
+        raise ValueError(f"Invalid LLM_BACKEND: {llm_backend}")
+
+    if _ollama is None:
+        logger.error("Failed to initialize LLM client")
+        raise RuntimeError("LLM client initialization failed")
+
     _ollama_available = _ollama.is_available()
     if not _ollama_available:
-        logger.warning("LM Studio server is not reachable. Start LM Studio and enable the local server.")
+        if hasattr(_ollama, "base_url"):
+            logger.warning("%s server is not reachable at %s", backend_name, _ollama.base_url)
+        else:
+            logger.warning("%s is not reachable", backend_name)
 
     # 4. Initialize PromptBuilder and SceneOrchestrator
     _prompt_builder = PromptBuilder(transcript_window_size=4)
@@ -1344,4 +1536,13 @@ if __name__ == "__main__":
         ollama_available=_ollama_available,
         tts_available=_tts_available,
     )
-    app.launch()
+
+    # Get Gradio server settings from environment (for Docker)
+    server_name = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
+    server_port = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
+
+    app.launch(
+        server_name=server_name,
+        server_port=server_port,
+        share=False,
+    )
