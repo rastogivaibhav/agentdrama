@@ -7,6 +7,12 @@ on:
     paths:
       - '.github/workflows/pi42b-exact-model-run.yml'
       - 'pi42_executor/**'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/pi42b-exact-model-run.yml'
+      - 'pi42_executor/**'
   workflow_dispatch:
 
 permissions:
