@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# PI4.2b frozen executor; labels are intentionally unavailable here.
 import json,re,sys,time,urllib.request
 from pathlib import Path
 
