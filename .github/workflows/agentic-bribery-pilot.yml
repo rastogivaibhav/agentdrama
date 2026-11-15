@@ -1,0 +1,48 @@
+name: Agentic Bribery Research Pilot (Free CPU/Ollama)
+on:
+  push:
+    branches:
+      - "research/agentic-bribery-pilot-2026-11-15"
+    paths:
+      - "research/agentic-bribery/**"
+      - ".github/workflows/agentic-bribery-pilot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-model-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ollama and fetch small public model
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve >/tmp/ollama-serve.log 2>&1 &)
+          for attempt in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull qwen2.5:1.5b
+          ollama list
+      - name: Conduct real-model scripted and dyad pilot
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/pilot.py
+          python3 research/agentic-bribery/pilot.py
+      - name: Preserve research results including on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentic-bribery-qwen25-15b-pilot
+          path: |
+            research/agentic-bribery/*.jsonl
+            research/agentic-bribery/summary.json
+            research/agentic-bribery/pilot.py
+          if-no-files-found: warn
+          retention-days: 14
