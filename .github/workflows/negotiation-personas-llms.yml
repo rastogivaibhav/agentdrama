@@ -1,0 +1,54 @@
+name: Two-Agent Negotiation Study (Traffic and SRE Personas)
+on:
+  push:
+    branches:
+      - "research/social-negotiation-personas-2026-11-15"
+    paths:
+      - "research/agentic-bribery/social_scenarios.py"
+      - ".github/workflows/negotiation-personas-llms.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  social-negotiation:
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ["qwen2.5:1.5b", "qwen2.5:7b"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      OLLAMA_MODEL: ${{ matrix.model }}
+      RESEARCH_REPS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install free local inference and pull selected open model
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve > /tmp/ollama-negotiations.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull "$OLLAMA_MODEL"
+          ollama list
+      - name: Execute live multi-turn negotiations (synthetic data only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/social_scenarios.py
+          python3 research/agentic-bribery/social_scenarios.py
+      - name: Preserve all transcripts, predictions and exact experiment code
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: negotiation-transcripts-${{ matrix.model }}
+          path: |
+            research/agentic-bribery/social-results/**
+            research/agentic-bribery/social_scenarios.py
+          retention-days: 30
+          if-no-files-found: warn
