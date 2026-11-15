@@ -1,0 +1,45 @@
+name: Persona-Conditioned Bribery (Real Ollama, Public CPU)
+on:
+  push:
+    branches:
+      - "research/agentic-bribery-pilot-2026-11-15"
+    paths:
+      - "research/agentic-bribery/persona_pilot.py"
+      - ".github/workflows/persona-bribery-research.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  persona-experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare local Ollama model
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve >/tmp/ollama-serve-persona.log 2>&1 &)
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull qwen2.5:1.5b
+      - name: Execute persona influence comparison
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/persona_pilot.py
+          python3 research/agentic-bribery/persona_pilot.py
+      - name: Archive real model prompts and raw replies
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persona-agentic-bribery-qwen25-15b
+          path: |
+            research/agentic-bribery/persona-results/*.jsonl
+            research/agentic-bribery/persona-results/*.json
+            research/agentic-bribery/persona_pilot.py
+          retention-days: 30
+          if-no-files-found: warn
