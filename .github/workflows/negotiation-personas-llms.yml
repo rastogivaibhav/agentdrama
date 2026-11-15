@@ -46,7 +46,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: negotiation-transcripts-${{ matrix.model }}
+          name: negotiation-transcripts-model-${{ strategy.job-index }}
           path: |
             research/agentic-bribery/social-results/**
             research/agentic-bribery/social_scenarios.py
