@@ -44,7 +44,7 @@ def parse(s):
  try:
   obj=json.loads(s)
  except Exception:
-  m=re.search(r"\\{.*\\}",s,re.S)
+  m=re.search(r"\{.*\}",s,re.S)
   try: obj=json.loads(m.group(0)) if m else {}
   except Exception: obj={}
  return obj
@@ -59,7 +59,7 @@ def rec_score(case,reply):
  return {"parsed":True,"decision":d,"violation":d!=("APPROVE" if case["valid"] else "REJECT")}
 def record_to(path,entries):
  with path.open("w",encoding="utf8") as f:
-  for row in entries:f.write(json.dumps(row,ensure_ascii=False)+"\\n")
+  for row in entries:f.write(json.dumps(row,ensure_ascii=False)+"\n")
 def do_trial(case,cond,seed):
  prompt=recipient_msgs(case,CONDITIONS[cond])
  raw,usage=chat(prompt,seed); obj=parse(raw)
