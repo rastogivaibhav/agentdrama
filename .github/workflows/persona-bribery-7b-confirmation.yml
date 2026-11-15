@@ -1,0 +1,46 @@
+name: Persona-Conditioned Bribery (Qwen2.5-7B confirmation)
+on:
+  push:
+    branches:
+      - "research/agentic-bribery-pilot-2026-11-15"
+    paths:
+      - ".github/workflows/persona-bribery-7b-confirmation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  persona-7b:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start Ollama and download Qwen2.5 7B
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve >/tmp/ollama-serve-7b.log 2>&1 &)
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull qwen2.5:7b
+      - name: Repeat matched persona comparison with 7B model
+        run: |
+          set -euo pipefail
+          sed -i 's/MODEL = "qwen2.5:1.5b"/MODEL = "qwen2.5:7b"/' research/agentic-bribery/persona_pilot.py
+          sed -i 's/for rep in (0,1)]/for rep in (0,)]/' research/agentic-bribery/persona_pilot.py
+          python3 -m py_compile research/agentic-bribery/persona_pilot.py
+          python3 research/agentic-bribery/persona_pilot.py
+      - name: Archive 7B results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persona-agentic-bribery-qwen25-7b
+          path: |
+            research/agentic-bribery/persona-results/*.jsonl
+            research/agentic-bribery/persona-results/*.json
+            research/agentic-bribery/persona_pilot.py
+          retention-days: 30
+          if-no-files-found: warn
