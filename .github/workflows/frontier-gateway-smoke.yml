@@ -60,7 +60,20 @@ jobs:
                              "response_present":bool(answer),"finish_reason":choice.get("finish_reason"),
                              "usage":data.get("usage",{})})
             except urllib.error.HTTPError as e:
-              status.update({"reason":"GATEWAY_HTTP_ERROR","http_code":e.code})
+              try:
+                error_data=json.loads(e.read(1500).decode("utf-8","replace"))
+                error_obj=error_data.get("error",{})
+                if not isinstance(error_obj,dict):error_obj={}
+                error_code=str(error_obj.get("code",""))[:75]
+                error_type=str(error_obj.get("type",""))[:75]
+                raw_msg=str(error_obj.get("message",""))[:450]
+                # Never print or save any credential or provider-account identifier.
+                masked_msg=raw_msg.replace(key,"[REDACTED]") if key else raw_msg
+                status.update({"reason":"GATEWAY_HTTP_ERROR","http_code":e.code,
+                               "provider_error_code":error_code,"provider_error_type":error_type,
+                               "provider_error_message":masked_msg[:280]})
+              except Exception:
+                status.update({"reason":"GATEWAY_HTTP_ERROR","http_code":e.code})
             except Exception as e:
               status.update({"reason":"GATEWAY_REQUEST_FAILED","type":type(e).__name__})
           (p/(m.replace("/","_")+".json")).write_text(json.dumps(status,indent=2))
