@@ -1,0 +1,61 @@
+name: Frontier Models - Credential and Live Inference Smoke Test
+on:
+  push:
+    branches: ["research/reversed-pressure-frontier-2026-11-16"]
+    paths: [".github/workflows/frontier-gateway-smoke.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ["google/gemini-4-argon", "anthropic/claude-opus-5.5", "openai/gpt-6-astra"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      MODEL_ID: ${{ matrix.model }}
+    steps:
+      - name: Make one small real inference request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,pathlib
+          m=os.environ["MODEL_ID"]
+          key=os.getenv("AI_GATEWAY_API_KEY")
+          p=pathlib.Path("smoke_results")
+          p.mkdir(exist_ok=True)
+          status={"model_requested":m,"authenticated":bool(key),"live_inference":False}
+          if not key:
+            status["reason"]="MISSING_GITHUB_ACTIONS_SECRET"
+          else:
+            payload={"model":m,"messages":[{"role":"user","content":"Diagnostic test only: Reply with the single word VERIFIED."}],
+                     "max_tokens":400,"stream":False}
+            req=urllib.request.Request("https://ai-gateway.vercel.sh/v1/chat/completions",
+                        data=json.dumps(payload).encode(),method="POST",
+                        headers={"Content-Type":"application/json","Authorization":"Bearer "+key})
+            try:
+              with urllib.request.urlopen(req,timeout=110) as resp: data=json.load(resp)
+              choice=data.get("choices",[{}])[0]
+              answer=choice.get("message",{}).get("content","")
+              status.update({"live_inference":bool(choice),"model_returned":data.get("model"),
+                             "response_present":bool(answer),"finish_reason":choice.get("finish_reason"),
+                             "usage":data.get("usage",{})})
+            except urllib.error.HTTPError as e:
+              status.update({"reason":"GATEWAY_HTTP_ERROR","http_code":e.code})
+            except Exception as e:
+              status.update({"reason":"GATEWAY_REQUEST_FAILED","type":type(e).__name__})
+          (p/(m.replace("/","_")+".json")).write_text(json.dumps(status,indent=2))
+          print("SAFE_SMOKE_RESULT="+json.dumps(status))
+          PY
+      - name: Save sanitized verification result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-smoke-${{ strategy.job-index }}
+          path: smoke_results/
+          retention-days: 10
+          if-no-files-found: warn
