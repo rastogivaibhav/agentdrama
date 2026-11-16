@@ -1,0 +1,51 @@
+name: Coercive Persona Negotiations — Traffic and Workplace PoSH
+on:
+  push:
+    branches:
+      - "research/coercive-personas-posh-2026-11-16"
+    paths:
+      - ".github/workflows/coercive-posh-study.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  paired-negotiations:
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ["traffic","payments"]
+        shard: [0,1,2,3,4]
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    env:
+      OLLAMA_MODEL: "qwen2.5:7b"
+      SCENARIO: ${{ matrix.scenario }}
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ollama and load free local 7B model
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve >/tmp/ollama-coercive.log 2>&1 &)
+          for n in $(seq 1 75); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull "$OLLAMA_MODEL"
+      - name: Run two frozen-opening matched social interactions
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/coercive_personas.py
+          python3 research/agentic-bribery/coercive_personas.py
+      - name: Archive exact prompts, real transcripts, outcomes and protocol
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coercive-posh-job-${{ strategy.job-index }}
+          path: |
+            research/agentic-bribery/coercive-personas/results/**
+            research/agentic-bribery/coercive_personas.py
+            research/agentic-bribery/COERCIVE_POSH_PROTOCOL.md
+          retention-days: 30
+          if-no-files-found: warn
