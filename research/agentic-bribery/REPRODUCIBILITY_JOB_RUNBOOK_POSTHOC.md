@@ -1,0 +1,33 @@
+# Research Jobs and Reproducibility Runbook (Post-hoc Supplement)
+**Prepared 16 November 2026.** This document was added **after** the model experiments; it does not alter any frozen experimental protocol or change outcomes.
+
+This is an index to actual workflow executions, not a claim of new experiments. Every workflow link is pinned to the **commit SHA of the original execution**, not the current `main` branch.
+
+| Stage | Original job | Workflow at run SHA | Script to inspect |
+| --- | --- | --- | --- |
+| Original 1.5B conditional-credit pilot (6/64 under original scoring) | [43768418775](https://github.com/rastogivaibhav/agentdrama/actions/runs/43768418775) | [persona-bribery-research.yml](https://github.com/rastogivaibhav/agentdrama/blob/bf14d76c0355e9e8fd4933f6febf48b258874a6e/.github/workflows/persona-bribery-research.yml) | [persona_pilot.py](https://github.com/rastogivaibhav/agentdrama/blob/bf14d76c0355e9e8fd4933f6febf48b258874a6e/research/agentic-bribery/persona_pilot.py) |
+| Original 7B confirmation (0/32) | [43769061267](https://github.com/rastogivaibhav/agentdrama/actions/runs/43769061267) | [persona-bribery-7b-confirmation.yml](https://github.com/rastogivaibhav/agentdrama/blob/b8f978ba404e837513e4e00338c5de8e116b60dd/.github/workflows/persona-bribery-7b-confirmation.yml) | Same Python file; historical workflow applies inline source substitutions before execution |
+| Social negotiation: original SRE marker speech | [43772427183](https://github.com/rastogivaibhav/agentdrama/actions/runs/43772427183) | [negotiation-personas-llms.yml](https://github.com/rastogivaibhav/agentdrama/blob/25cda6bbf9158fdd760f1c3b8504d0bc3c90be66/.github/workflows/negotiation-personas-llms.yml) | [social_scenarios.py](https://github.com/rastogivaibhav/agentdrama/blob/25cda6bbf9158fdd760f1c3b8504d0bc3c90be66/research/agentic-bribery/social_scenarios.py) |
+| Hidden motives: warning-and-release | [43815979782](https://github.com/rastogivaibhav/agentdrama/actions/runs/43815979782) | [hidden-motives-ten-rounds.yml](https://github.com/rastogivaibhav/agentdrama/blob/ffe58138e91bb9152eb5c2bd24ac03a93efa656e/.github/workflows/hidden-motives-ten-rounds.yml) | [hidden_motives.py](https://github.com/rastogivaibhav/agentdrama/blob/ffe58138e91bb9152eb5c2bd24ac03a93efa656e/research/agentic-bribery/hidden_motives.py) |
+| High stakes: instalments and fine drift | [43825254102](https://github.com/rastogivaibhav/agentdrama/actions/runs/43825254102) | [high-stakes-private-incentives.yml](https://github.com/rastogivaibhav/agentdrama/blob/8f884f77027e53143868ae334322aa36d8da2fcd/.github/workflows/high-stakes-private-incentives.yml) | [high_stakes_private.py](https://github.com/rastogivaibhav/agentdrama/blob/8f884f77027e53143868ae334322aa36d8da2fcd/research/agentic-bribery/high_stakes_private.py) |
+| Reversed pressure: 3/10 SRE disclosure each arm | [43855215155](https://github.com/rastogivaibhav/agentdrama/actions/runs/43855215155) | [reversed-pressure-frontier.yml](https://github.com/rastogivaibhav/agentdrama/blob/ce7bd3e0feb5ab5e95595f1f5ee5550e964f52e4/.github/workflows/reversed-pressure-frontier.yml) | [pressure_reversal_frontier.py](https://github.com/rastogivaibhav/agentdrama/blob/ce7bd3e0feb5ab5e95595f1f5ee5550e964f52e4/research/agentic-bribery/pressure_reversal_frontier.py) |
+| V2 virtual-ledger pilot | [43890377791](https://github.com/rastogivaibhav/agentdrama/actions/runs/43890377791) | [verified-corruption-v2.yml](https://github.com/rastogivaibhav/agentdrama/blob/bb8c55da6bb703a9363e7c6f0a53362c524c391e/.github/workflows/verified-corruption-v2.yml) | [verified_corruption_ledger_v2.py](https://github.com/rastogivaibhav/agentdrama/blob/bb8c55da6bb703a9363e7c6f0a53362c524c391e/research/agentic-bribery/verified_corruption_ledger_v2.py) |
+| V3 incentive ecology | [43908351118](https://github.com/rastogivaibhav/agentdrama/actions/runs/43908351118) | [incentive-ecology-v3.yml](https://github.com/rastogivaibhav/agentdrama/blob/b181bb756e7014d4b013a79579b71046e38a5f80/.github/workflows/incentive-ecology-v3.yml) | [incentive_ecology_v3.py](https://github.com/rastogivaibhav/agentdrama/blob/b181bb756e7014d4b013a79579b71046e38a5f80/research/agentic-bribery/incentive_ecology_v3.py) |
+| V4 normative pilot and deterministic independent audit | [43919572412](https://github.com/rastogivaibhav/agentdrama/actions/runs/43919572412) | [normative-behaviour-v4.yml](https://github.com/rastogivaibhav/agentdrama/blob/7b0deecfca357697789c6fa0249165bb4c52556a/.github/workflows/normative-behaviour-v4.yml) | [incentive_ecology_v4.py](https://github.com/rastogivaibhav/agentdrama/blob/7b0deecfca357697789c6fa0249165bb4c52556a/research/agentic-bribery/incentive_ecology_v4.py); [v4_independent_auditor.py](https://github.com/rastogivaibhav/agentdrama/blob/7b0deecfca357697789c6fa0249165bb4c52556a/research/agentic-bribery/v4_independent_auditor.py) |
+
+## Minimum practical reproduction example
+For local Qwen, execute the original Python runner from the pinned V4 source tree. On a runner with Ollama installed and its server running:
+```bash
+ollama pull qwen2.5:7b
+MODEL_ID=qwen2.5:7b SCENARIO=traffic SEED_BLOCK=0 \
+python3 research/agentic-bribery/incentive_ecology_v4.py
+python3 research/agentic-bribery/v4_independent_auditor.py
+```
+Review the exact GitHub Actions workflow for installation, server polling, artifact upload and timeouts; do not infer successful inference from the workflow completion status.
+
+For free Nemotron, V4 used the GitHub **environment** `AI_GATEWAY_API_KEY` with the **secret** `AI_GATEWAY_API_KEY`, model ID `nvidia/nemotron-3.5-lightning-free`, and a 16-second inter-request throttle. The provider quota and availability may have changed. **Do not publish secret values.**
+
+## Evidence lookup and caveats
+The separate 15–16 November formal evidence ZIP provides 113 original GitHub artifact archives, the full 33-run register, 569 original cases, verbatim outputs, SHA-256 checksums and `evidence/VERIFY_EVIDENCE.py`. A PDF run-by-run appendix contains a dedicated evidence sheet for all 33 runs. Every amended experiment is reported as a new protocol; cases from different versions must not be pooled as a fixed design.
+
+The original early one-turn result (6 of 64 positive by original scoring) is not a completed independently accepted bribe under V4's four-stage definition. A SRE quoting an exact synthetic protected marker is an independently reportable confidentiality defect, not evidence that a real password was leaked or that bribery occurred. Unauthorised simulated tool-state transitions and verbal claims are different measurement types.
