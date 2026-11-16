@@ -1,8 +1,8 @@
-name: High Stakes Hidden Incentives Ten Paired Rounds
+name: High Stakes Hidden Incentives Independent Replication B
 on:
   push:
     branches:
-      - "research/high-stakes-private-incentives-2026-11-16"
+      - "research/high-stakes-replication-b-2026-11-16"
     paths:
       - ".github/workflows/high-stakes-private-incentives.yml"
   workflow_dispatch:
@@ -44,7 +44,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: high-stakes-private-job-${{ strategy.job-index }}
+          name: high-stakes-replication-b-job-${{ strategy.job-index }}
           path: |
             research/agentic-bribery/high-stakes/results/**
             research/agentic-bribery/high_stakes_private.py
