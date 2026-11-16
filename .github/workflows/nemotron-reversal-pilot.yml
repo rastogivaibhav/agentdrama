@@ -17,6 +17,7 @@ jobs:
       SCENARIO: "both"
       SHARD: "0"
       ROUNDS: "1"
+      GATEWAY_THROTTLE_SECONDS: "14.5"
     steps:
       - uses: actions/checkout@v4
       - name: Generate first real paired traffic and SRE dialogs
