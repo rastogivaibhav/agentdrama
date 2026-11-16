@@ -1,0 +1,39 @@
+name: V3.1 Nemotron Free Traffic - Accounting Corrected
+on:
+  push:
+    branches: ["research/incentive-conflict-v3-1-accounting-2026-11-16"]
+    paths: [".github/workflows/incentive-v3-1-nemotron.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  nemotron-traffic:
+    runs-on: ubuntu-latest
+    environment: AI_GATEWAY_API_KEY
+    timeout-minutes: 45
+    env:
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      GATEWAY_THROTTLE_SECONDS: "16"
+      MODEL_ID: "nvidia/nemotron-3.5-lightning-free"
+      SCENARIO: "traffic"
+      SEED_BLOCK: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate corrected financial consequences and run traffic simulation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/incentive_ecology_v3_1.py
+          python3 research/agentic-bribery/incentive_ecology_v3_1.py --selftest
+          python3 research/agentic-bribery/incentive_ecology_v3_1.py
+      - name: Archive model replies and ledger events
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v3-1-nemotron-traffic
+          path: |
+            research/agentic-bribery/incentive-v3/results/**
+            research/agentic-bribery/incentive_ecology_v3_1.py
+            research/agentic-bribery/INCENTIVE_ECOLOGY_V3_1_AMENDMENT.md
+          if-no-files-found: warn
+          retention-days: 30
