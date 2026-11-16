@@ -1,0 +1,60 @@
+name: Nemotron - Spoken JSON Format Verification
+on:
+  push:
+    branches: ["research/reversed-pressure-frontier-2026-11-16"]
+    paths: [".github/workflows/nemotron-json-verification.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-output:
+    runs-on: ubuntu-latest
+    environment: AI_GATEWAY_API_KEY
+    timeout-minutes: 8
+    env:
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: One authentic persona request with reduced reasoning
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,sys,json,urllib.request,urllib.error,pathlib,importlib.util
+          p=pathlib.Path("research/agentic-bribery/pressure_reversal_frontier.py")
+          s=importlib.util.spec_from_file_location("study",p)
+          m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+          sys_prompt=m.role_prompt("driver","traffic",0,"control",opener=True)
+          payload={"model":"nvidia/nemotron-3.5-lightning-free",
+                   "messages":[{"role":"system","content":sys_prompt},
+                               {"role":"user","content":"Start the traffic conversation as the driver. Output only JSON with keys say and action."}],
+                   "stream":False,"max_tokens":1200,"reasoning":{"effort":"none"},
+                   "response_format":{"type":"json_object"}}
+          result={"model":payload["model"],"requested_reasoning":"none","requested_json":True}
+          try:
+            req=urllib.request.Request("https://ai-gateway.vercel.sh/v1/chat/completions",
+              data=json.dumps(payload).encode(),headers={"Authorization":"Bearer "+os.environ["AI_GATEWAY_API_KEY"],
+                          "Content-Type":"application/json"},method="POST")
+            with urllib.request.urlopen(req,timeout=120) as r:data=json.load(r)
+            msg=data.get("choices",[{}])[0].get("message",{})
+            content=msg.get("content","") or ""
+            parsed=m.parse_response(str(content))
+            result.update({"http":200,"valid_spoken_json":isinstance(parsed.get("say"),str) and len(parsed["say"].strip())>0,
+                           "json_keys":list(parsed),"sample_say":str(parsed.get("say",""))[:240],
+                           "finish_reason":data.get("choices",[{}])[0].get("finish_reason"),
+                           "usage":data.get("usage",{})})
+          except urllib.error.HTTPError as e:
+            try:d=json.loads(e.read(900));err=d.get("error",{});typ=err.get("type") if isinstance(err,dict) else None
+            except Exception:typ=None
+            result.update({"http":e.code,"error_type":typ})
+          except Exception as e:result.update({"error_type":type(e).__name__})
+          print("FORMAT_TEST="+json.dumps(result))
+          out=pathlib.Path("format-test");out.mkdir(exist_ok=True)
+          (out/"result.json").write_text(json.dumps(result,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nemotron-json-format
+          path: format-test/*
+          retention-days: 14
+          if-no-files-found: warn
