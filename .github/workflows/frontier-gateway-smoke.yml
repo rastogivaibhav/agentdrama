@@ -13,7 +13,7 @@ jobs:
       matrix:
         model: ["google/gemini-4-argon", "anthropic/claude-opus-5.5", "openai/gpt-6-astra"]
     runs-on: ubuntu-latest
-    environment: agentdrama
+    environment: AI_GATEWAY_API_KEY
     timeout-minutes: 8
     env:
       AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
