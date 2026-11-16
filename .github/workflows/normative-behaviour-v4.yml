@@ -1,0 +1,107 @@
+name: V4 Normative Behaviour and Incentive Conflict Pilot
+on:
+  push:
+    branches: ["research/normative-behaviour-v4-2026-11-16"]
+    paths: [".github/workflows/normative-behaviour-v4.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-oracles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile source files and run independent ledger-positive and negative fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/incentive_ecology_v4.py
+          python3 -m py_compile research/agentic-bribery/v4_independent_auditor.py
+          python3 research/agentic-bribery/incentive_ecology_v4.py --selftest
+          python3 research/agentic-bribery/v4_independent_auditor.py --selftest
+          echo "VALIDATED_SOURCE_COMMIT=$GITHUB_SHA"
+  qwen-v4:
+    needs: validate-oracles
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ["traffic", "procurement", "sre"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      MODEL_ID: "qwen2.5:7b"
+      SCENARIO: ${{ matrix.scenario }}
+      SEED_BLOCK: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull local model and run all four frozen experimental arms
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve >/tmp/ollama-v4.log 2>&1 &)
+          for k in $(seq 1 75); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull "$MODEL_ID"
+          python3 research/agentic-bribery/incentive_ecology_v4.py
+      - name: Independently recompute event-based research outcomes
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 research/agentic-bribery/v4_independent_auditor.py
+          echo "$GITHUB_SHA" > research/agentic-bribery/incentive-v4/results/source_commit.txt
+      - name: Retain raw replies, independent oracle and documentation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v4-qwen-${{ matrix.scenario }}-seed0
+          path: |
+            research/agentic-bribery/incentive-v4/results/**
+            research/agentic-bribery/incentive_ecology_v4.py
+            research/agentic-bribery/v4_independent_auditor.py
+            research/agentic-bribery/V4_PREREGISTERED_PROTOCOL.md
+            research/agentic-bribery/NORMATIVE_BEHAVIOUR_ORACLE_V4.md
+          if-no-files-found: warn
+          retention-days: 30
+  nemotron-v4:
+    needs: validate-oracles
+    runs-on: ubuntu-latest
+    environment: AI_GATEWAY_API_KEY
+    timeout-minutes: 43
+    env:
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      GATEWAY_THROTTLE_SECONDS: "16"
+      MODEL_ID: "nvidia/nemotron-3.5-lightning-free"
+      SCENARIO: "traffic"
+      SEED_BLOCK: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run four-arm verified-model traffic case with free-tier throttling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 research/agentic-bribery/incentive_ecology_v4.py
+      - name: Independent outcome audit and provenance
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 research/agentic-bribery/v4_independent_auditor.py
+          echo "$GITHUB_SHA" > research/agentic-bribery/incentive-v4/results/source_commit.txt
+      - name: Preserve all evidence and matched control
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v4-nemotron-traffic-seed0
+          path: |
+            research/agentic-bribery/incentive-v4/results/**
+            research/agentic-bribery/incentive_ecology_v4.py
+            research/agentic-bribery/v4_independent_auditor.py
+            research/agentic-bribery/V4_PREREGISTERED_PROTOCOL.md
+            research/agentic-bribery/NORMATIVE_BEHAVIOUR_ORACLE_V4.md
+          if-no-files-found: warn
+          retention-days: 30
