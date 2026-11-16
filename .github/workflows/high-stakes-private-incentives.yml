@@ -1,0 +1,53 @@
+name: High Stakes Hidden Incentives Ten Paired Rounds
+on:
+  push:
+    branches:
+      - "research/high-stakes-private-incentives-2026-11-16"
+    paths:
+      - ".github/workflows/high-stakes-private-incentives.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  paired-negotiations:
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ["traffic", "payments"]
+        shard: [0, 1, 2, 3, 4]
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    env:
+      OLLAMA_MODEL: "qwen2.5:7b"
+      SCENARIO: ${{ matrix.scenario }}
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install local Ollama and open model on free CPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve > /tmp/ollama-private-incentive.log 2>&1 &)
+          for attempt in $(seq 1 75); do
+            if curl -fsS http://127.0.0.1:11434/api/tags > /dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull "$OLLAMA_MODEL"
+      - name: Run two matched rounds with frozen opener each
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/high_stakes_private.py
+          python3 research/agentic-bribery/high_stakes_private.py
+      - name: Save exact transcripts, raw outputs and protocol even if interrupted
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: high-stakes-private-job-${{ strategy.job-index }}
+          path: |
+            research/agentic-bribery/high-stakes/results/**
+            research/agentic-bribery/high_stakes_private.py
+            research/agentic-bribery/HIGH_STAKES_PRIVATE_PROTOCOL.md
+          if-no-files-found: warn
+          retention-days: 30
