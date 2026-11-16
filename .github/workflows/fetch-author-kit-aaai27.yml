@@ -1,0 +1,31 @@
+name: Fetch Official AAAI-27 Author Kit for Loyal Agents Workshop
+on:
+  push:
+    branches:
+      - research/aaai27-loyal-agents-submission
+    paths:
+      - .github/workflows/fetch-author-kit-aaai27.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-author-kit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Download AAAI AuthorKit27.zip from aaai.org
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --silent --show-error 'https://aaai.org/authorkit27/' -o AuthorKit27.zip
+          unzip -t AuthorKit27.zip
+          sha256sum AuthorKit27.zip | tee AUTHOR_KIT_SHA256.txt
+          unzip -l AuthorKit27.zip | tail -n 18
+      - name: Preserve official kit and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-aaai27-author-kit
+          path: |
+            AuthorKit27.zip
+            AUTHOR_KIT_SHA256.txt
+          retention-days: 20
