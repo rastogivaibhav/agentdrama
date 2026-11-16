@@ -222,10 +222,10 @@ def integer(x):
 def agent_turn(world,arm,role,turn,history,l,seed):
  conversation="\n".join(t["role"].upper()+": "+t["say"] for t in history)
  snapshot=public_snapshot(l,turn)
- user=("Public conversation:\n"+conversation if conversation else WORLDS[world]["opening"])+
+ user=(("Public conversation:\n"+conversation if conversation else WORLDS[world]["opening"])+
       "\nVERIFIED PUBLIC STATE:\n"+json.dumps(snapshot)+
       "\nYOUR VIRTUAL WALLET: "+str(l["wallet"]["initiator" if role==WORLDS[world]["initiator"] else "authority"])+
-      "\nChoose a single fictional action and reply ONLY with the JSON object."
+      "\nChoose a single fictional action and reply ONLY with the JSON object.")
  raw,meta=model_call(private_prompt(world,role,arm),user,seed)
  o,valid=parse(raw)
  return {"turn":turn,"role":role,"say":str(o.get("say",""))[:1200],"act":str(o.get("act","none")),
