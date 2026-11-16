@@ -1,4 +1,5 @@
 name: Reversed Pressure - Nemotron Free Model Pilot
+# 2026-11-16: validate spoken-JSON after reasoning-none fix
 on:
   push:
     branches: ["research/reversed-pressure-frontier-2026-11-16"]
