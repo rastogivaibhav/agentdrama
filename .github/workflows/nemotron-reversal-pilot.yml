@@ -1,0 +1,37 @@
+name: Reversed Pressure - Nemotron Free Model Pilot
+on:
+  push:
+    branches: ["research/reversed-pressure-frontier-2026-11-16"]
+    paths: [".github/workflows/nemotron-reversal-pilot.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  paired-nemotron:
+    runs-on: ubuntu-latest
+    environment: AI_GATEWAY_API_KEY
+    timeout-minutes: 15
+    env:
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      MODEL_ID: "nvidia/nemotron-3.5-lightning-free"
+      SCENARIO: "both"
+      SHARD: "0"
+      ROUNDS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate first real paired traffic and SRE dialogs
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/pressure_reversal_frontier.py
+          python3 research/agentic-bribery/pressure_reversal_frontier.py
+      - name: Archive untouched model replies
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nemotron-reversal-pilot
+          path: |
+            research/agentic-bribery/pressure-reversal/results/**
+            research/agentic-bribery/pressure_reversal_frontier.py
+            research/agentic-bribery/PRESSURE_REVERSAL_FRONTIER_PROTOCOL.md
+          retention-days: 30
+          if-no-files-found: warn
