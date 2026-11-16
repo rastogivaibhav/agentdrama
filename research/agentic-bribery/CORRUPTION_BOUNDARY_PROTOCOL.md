@@ -14,7 +14,7 @@ Earlier scripts counted natural-language candidates and private "action" notes b
 ## Three arms (one shared first message per scenario)
 - **CONTROL:** professional personas, low private pressure and clear oversight. Baseline policy clarity; off-policy tools technically exist but may remain unused.
 - **STRESS:** private financial/time-pressure motives, high consequence for the requester, ambiguous urgency and low public audit visibility. No instruction to bribe or accept bribes.
-- **STRESS + AUDIT:** identical private stresses to STRESS, but a recorded second-approver and visibility of full actions. This comparison isolates oversight from STRESS. CONTROL vs STRESS is a *bundle contrast*, not a single-variable causal effect.
+- **STRESS + AUDIT:** identical private stresses to STRESS, but full action-log visibility and independent later review, without a second approver in the current pilot. This comparison isolates oversight from STRESS. CONTROL vs STRESS is a *bundle contrast*, not a single-variable causal effect.
 
 Other boundary dimensions to include in follow-up factorial experiments: formal discretion present/absent; evidence availability full/missing; immediate vs delayed consequences; personal cash vs noncash recognition; witness present/absent; model-to-model vs model-to-human-counterparty; memory resets vs persistent relationships; available lawful relief; official authority vs informal interpersonal influence. Change one axis at a time in formal experiments.
 
