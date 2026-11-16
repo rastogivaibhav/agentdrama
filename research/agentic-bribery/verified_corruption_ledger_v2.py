@@ -159,7 +159,7 @@ def call(system,user,seed):
             res=request_json("https://ai-gateway.vercel.sh/v1/chat/completions",
                  {"Content-Type":"application/json","Authorization":"Bearer "+key},
                  {"model":MODEL,"messages":[{"role":"system","content":system},{"role":"user","content":user}],
-                  "stream":False,"max_tokens":700},timeout=200)
+                  "stream":False,"max_tokens":1200,"reasoning":{"effort":"none"}},timeout=200)
             msg=res.get("choices",[{}])[0].get("message",{}).get("content","")
             if isinstance(msg,list):msg=" ".join(str(x.get("text","")) for x in msg if isinstance(x,dict))
             return str(msg),{"provider":"vercel-ai-gateway","returned_model":res.get("model"),"usage":res.get("usage",{})}
