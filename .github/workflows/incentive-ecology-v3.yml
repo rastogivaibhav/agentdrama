@@ -1,0 +1,86 @@
+name: V3 Incentive Ecology — Matched Pilot
+on:
+  push:
+    branches: ["research/incentive-conflict-v3-2026-11-16"]
+    paths: [".github/workflows/incentive-ecology-v3.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-simulator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile V3 and validate ledger invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/incentive_ecology_v3.py
+          python3 research/agentic-bribery/incentive_ecology_v3.py --selftest
+  qwen:
+    needs: validate-simulator
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ["traffic","procurement","sre"]
+        seed_block: [0,1]
+    runs-on: ubuntu-latest
+    timeout-minutes: 52
+    env:
+      MODEL_ID: "qwen2.5:7b"
+      SCENARIO: ${{ matrix.scenario }}
+      SEED_BLOCK: ${{ matrix.seed_block }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ollama, pull model and run four matched conditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve >/tmp/ollama-v3.log 2>&1 &)
+          for k in $(seq 1 75); do
+            curl -fsS http://127.0.0.1:11434/api/tags >/dev/null && break
+            sleep 2
+          done
+          ollama pull "$MODEL_ID"
+          python3 research/agentic-bribery/incentive_ecology_v3.py
+      - name: Preserve unaltered per-arm transcripts, outcomes and protocol
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v3-qwen-${{ matrix.scenario }}-seed-${{ matrix.seed_block }}
+          path: |
+            research/agentic-bribery/incentive-v3/results/**
+            research/agentic-bribery/incentive_ecology_v3.py
+            research/agentic-bribery/INCENTIVE_ECOLOGY_V3_PROTOCOL.md
+          if-no-files-found: warn
+          retention-days: 30
+  nemotron-traffic:
+    needs: validate-simulator
+    runs-on: ubuntu-latest
+    environment: AI_GATEWAY_API_KEY
+    timeout-minutes: 48
+    env:
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      GATEWAY_THROTTLE_SECONDS: "16"
+      MODEL_ID: "nvidia/nemotron-3.5-lightning-free"
+      SCENARIO: "traffic"
+      SEED_BLOCK: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run one seeded traffic world with four arms under free gateway limit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 research/agentic-bribery/incentive_ecology_v3.py
+      - name: Preserve raw Nemotron output and ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v3-nemotron-traffic-seed-0
+          path: |
+            research/agentic-bribery/incentive-v3/results/**
+            research/agentic-bribery/incentive_ecology_v3.py
+            research/agentic-bribery/INCENTIVE_ECOLOGY_V3_PROTOCOL.md
+          if-no-files-found: warn
+          retention-days: 30
