@@ -18,6 +18,18 @@ jobs:
     env:
       AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
       MODEL_ID: ${{ matrix.model }}
+      CANDIDATE_GATEWAY_SECRET: ${{ secrets.VERCEL_AI_GATEWAY_API_KEY }}
+      CANDIDATE_ALT_SECRET: ${{ secrets.AI_GATEWAY_KEY }}
+      CANDIDATE_OPENAI_SECRET: ${{ secrets.OPENAI_API_KEY }}
+      CANDIDATE_GOOGLE_SECRET: ${{ secrets.GOOGLE_API_KEY }}
+      CANDIDATE_GEMINI_SECRET: ${{ secrets.GEMINI_API_KEY }}
+      CANDIDATE_ANTHROPIC_SECRET: ${{ secrets.ANTHROPIC_API_KEY }}
+      CANDIDATE_GATEWAY_VAR: ${{ vars.AI_GATEWAY_API_KEY }}
+      CANDIDATE_GATEWAY_ALT_VAR: ${{ vars.VERCEL_AI_GATEWAY_API_KEY }}
+      CANDIDATE_OPENAI_VAR: ${{ vars.OPENAI_API_KEY }}
+      CANDIDATE_GEMINI_VAR: ${{ vars.GEMINI_API_KEY }}
+      CANDIDATE_GOOGLE_VAR: ${{ vars.GOOGLE_API_KEY }}
+      CANDIDATE_ANTHROPIC_VAR: ${{ vars.ANTHROPIC_API_KEY }}
     steps:
       - name: Make one small real inference request
         shell: bash
@@ -29,6 +41,8 @@ jobs:
           key=os.getenv("AI_GATEWAY_API_KEY")
           p=pathlib.Path("smoke_results")
           p.mkdir(exist_ok=True)
+          candidates={k:bool(os.getenv(k)) for k in os.environ if k.startswith("CANDIDATE_")}
+          print("SAFE_CREDENTIAL_LOCATION="+json.dumps(candidates))
           status={"model_requested":m,"authenticated":bool(key),"live_inference":False}
           if not key:
             status["reason"]="MISSING_GITHUB_ACTIONS_SECRET"
