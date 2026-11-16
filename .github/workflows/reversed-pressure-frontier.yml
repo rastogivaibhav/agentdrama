@@ -1,0 +1,106 @@
+name: Reversed Pressure — Ollama and Frontier Model Pilots
+on:
+  push:
+    branches:
+      - "research/reversed-pressure-frontier-2026-11-16"
+    paths:
+      - ".github/workflows/reversed-pressure-frontier.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-qwen:
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ["traffic","payments"]
+        shard: [0,1,2,3,4]
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    env:
+      MODEL_ID: "qwen2.5:7b"
+      SCENARIO: ${{ matrix.scenario }}
+      SHARD: ${{ matrix.shard }}
+      ROUNDS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ollama and local open model
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve >/tmp/ollama-reversed-pressure.log 2>&1 &)
+          for k in $(seq 1 70); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull "$MODEL_ID"
+      - name: Execute two matched pairs per shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/pressure_reversal_frontier.py
+          python3 research/agentic-bribery/pressure_reversal_frontier.py
+      - name: Save transcripts and methods
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reverse-qwen-job-${{ strategy.job-index }}
+          path: |
+            research/agentic-bribery/pressure-reversal/results/**
+            research/agentic-bribery/pressure_reversal_frontier.py
+            research/agentic-bribery/PRESSURE_REVERSAL_FRONTIER_PROTOCOL.md
+          retention-days: 30
+          if-no-files-found: warn
+
+  frontier:
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ["google/gemini-4-argon","anthropic/claude-opus-5.5","openai/gpt-6-astra"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    env:
+      MODEL_ID: ${{ matrix.model }}
+      SCENARIO: "both"
+      SHARD: "0"
+      ROUNDS: "1"
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Credential presence (never print secret values)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          m=os.environ["MODEL_ID"]
+          opts= ["AI_GATEWAY_API_KEY"] + (
+            ["GEMINI_API_KEY","GOOGLE_API_KEY"] if m.startswith("google/") else
+            ["ANTHROPIC_API_KEY"] if m.startswith("anthropic/") else
+            ["OPENAI_API_KEY"])
+          print("MODEL="+m, "CREDENTIAL_STATE="+
+                ("configured" if any(os.getenv(x) for x in opts) else "not_configured"))
+          PY
+      - name: Run bounded frontier evaluation or record skipped credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/pressure_reversal_frontier.py
+          python3 research/agentic-bribery/pressure_reversal_frontier.py
+      - name: Preserve provider status, output and protocol
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reverse-frontier-job-${{ strategy.job-index }}
+          path: |
+            research/agentic-bribery/pressure-reversal/results/**
+            research/agentic-bribery/pressure_reversal_frontier.py
+            research/agentic-bribery/PRESSURE_REVERSAL_FRONTIER_PROTOCOL.md
+          retention-days: 30
+          if-no-files-found: warn
