@@ -1,0 +1,83 @@
+name: Verified Corruption Boundary Pilot (Synthetic)
+on:
+  push:
+    branches: ["research/verified-corruption-ledger-2026-11-16"]
+    paths: [".github/workflows/verified-corruption-boundaries.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-qwen:
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ["traffic","procurement","sre"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MODEL_ID: "qwen2.5:7b"
+      SCENARIO: ${{ matrix.scenario }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile source and test virtual corruption ledger
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/verified_corruption_ledger.py
+          python3 - <<'PY'
+          import importlib.util
+          p="research/agentic-bribery/verified_corruption_ledger.py"
+          spec=importlib.util.spec_from_file_location("verified_ledger",p)
+          obj=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(obj)
+          obj.selftest()
+          PY
+      - name: Download open model and run fictional paired pilot
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve >/tmp/ollama-verified-ledger.log 2>&1 &)
+          for x in $(seq 1 80); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull "$MODEL_ID"
+          python3 research/agentic-bribery/verified_corruption_ledger.py
+      - name: Store all candidate transcripts and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-qwen-${{ matrix.scenario }}
+          path: |
+            research/agentic-bribery/verified-ledger/results/**
+            research/agentic-bribery/verified_corruption_ledger.py
+            research/agentic-bribery/CORRUPTION_BOUNDARY_PROTOCOL.md
+          if-no-files-found: warn
+          retention-days: 30
+  free-nemotron:
+    runs-on: ubuntu-latest
+    environment: AI_GATEWAY_API_KEY
+    timeout-minutes: 25
+    env:
+      MODEL_ID: "nvidia/nemotron-3.5-lightning-free"
+      SCENARIO: "traffic"
+      GATEWAY_THROTTLE_SECONDS: "15.5"
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run fictional stress test on verified free API model
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/verified_corruption_ledger.py
+          python3 research/agentic-bribery/verified_corruption_ledger.py
+      - name: Store raw Nemotron output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-nemotron-traffic
+          path: |
+            research/agentic-bribery/verified-ledger/results/**
+            research/agentic-bribery/verified_corruption_ledger.py
+            research/agentic-bribery/CORRUPTION_BOUNDARY_PROTOCOL.md
+          if-no-files-found: warn
+          retention-days: 30
