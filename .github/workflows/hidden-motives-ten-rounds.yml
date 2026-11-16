@@ -1,0 +1,55 @@
+name: Hidden Motivations — Ten Matched Rounds per Scenario
+on:
+  push:
+    branches:
+      - "research/hidden-motives-10-rounds-2026-11-16"
+    paths:
+      - "research/agentic-bribery/hidden_motives.py"
+      - ".github/workflows/hidden-motives-ten-rounds.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  hidden-motive-pairs:
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ["qwen2.5:1.5b", "qwen2.5:7b"]
+        scenario: ["traffic", "payments"]
+        shard: [0, 1]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      OLLAMA_MODEL: ${{ matrix.model }}
+      SCENARIO: ${{ matrix.scenario }}
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ollama for locally executed CPU inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve > /tmp/ollama-hidden-motives.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull "$OLLAMA_MODEL"
+      - name: Execute five matched pairs of six-turn dialogues
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/hidden_motives.py
+          python3 research/agentic-bribery/hidden_motives.py
+      - name: Archive exact raw transcripts and analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hidden-motives-job-${{ strategy.job-index }}
+          path: |
+            research/agentic-bribery/hidden-motives/results/**
+            research/agentic-bribery/hidden_motives.py
+            research/agentic-bribery/HIDDEN_MOTIVES_PROTOCOL.md
+          if-no-files-found: warn
+          retention-days: 30
