@@ -1,5 +1,5 @@
 name: Frontier Models - Credential and Live Inference Smoke Test
-# 2026-11-16: retest after user confirmed gateway configuration
+# 2026-11-16: verify live access after billing and API-key dashboard inspection
 on:
   push:
     branches: ["research/reversed-pressure-frontier-2026-11-16"]
