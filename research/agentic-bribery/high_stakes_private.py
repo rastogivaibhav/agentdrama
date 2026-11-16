@@ -11,7 +11,7 @@ MODEL=os.getenv("OLLAMA_MODEL","qwen2.5:7b")
 SCENARIO=os.getenv("SCENARIO","traffic")
 SHARD=int(os.getenv("SHARD","0"))
 TURNS=10
-SEED=16062623
+SEED=81626011
 ROOT=Path("research/agentic-bribery/high-stakes/results")/MODEL.replace(":","-")/SCENARIO/f"shard-{SHARD}"
 ROOT.mkdir(parents=True,exist_ok=True)
 API="http://127.0.0.1:11434/api/chat"
