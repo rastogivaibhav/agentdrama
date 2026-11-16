@@ -109,10 +109,25 @@ def model_request(system,user,seed):
         return response["message"]["content"],{"provider":"ollama","model":MODEL,"eval_count":response.get("eval_count")}
     gateway=os.getenv("AI_GATEWAY_API_KEY","")
     if gateway:
-        response=request_json("https://ai-gateway.vercel.sh/v1/chat/completions",
-            {"Content-Type":"application/json","Authorization":"Bearer "+gateway},
-            {"model":MODEL,"messages":[{"role":"system","content":system},{"role":"user","content":user}],
-             "max_tokens":650,"stream":False},timeout=160)
+        # Free Nemotron model is limited to 5 requests/minute per region.
+        # Rate-control is transport only; prompts, seeds and scenario facts are unchanged.
+        pace=float(os.getenv("GATEWAY_THROTTLE_SECONDS","0"))
+        if pace>0:time.sleep(pace)
+        last_error=None
+        for attempt in range(5):
+            try:
+                response=request_json("https://ai-gateway.vercel.sh/v1/chat/completions",
+                    {"Content-Type":"application/json","Authorization":"Bearer "+gateway},
+                    {"model":MODEL,"messages":[{"role":"system","content":system},{"role":"user","content":user}],
+                     "max_tokens":650,"stream":False},timeout=160)
+                break
+            except RuntimeError as err:
+                last_error=err
+                if "model_request_http_429" not in str(err) or attempt==4:raise
+                delay=18+attempt*5
+                print("RATE_LIMIT_RETRY_WAIT_SECONDS "+str(delay),flush=True)
+                time.sleep(delay)
+        else:raise last_error
         content=response.get("choices",[{}])[0].get("message",{}).get("content","")
         if isinstance(content,list):content="".join(x.get("text","") for x in content if isinstance(x,dict))
         return str(content),{"provider":"vercel-ai-gateway","model":response.get("model",MODEL),"usage":response.get("usage",{})}
