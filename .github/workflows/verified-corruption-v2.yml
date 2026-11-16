@@ -1,0 +1,56 @@
+name: Verified Corruption Pilot V2 - Role Corrected
+on:
+  push:
+    branches: ["research/verified-corruption-ledger-2026-11-16"]
+    paths: [".github/workflows/verified-corruption-v2.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pilot:
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ["traffic","procurement","sre"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 37
+    env:
+      MODEL_ID: "qwen2.5:7b"
+      SCENARIO: ${{ matrix.scenario }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile v2 and test ledger mechanics
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/verified_corruption_ledger_v2.py
+          python3 - <<'PY'
+          import importlib.util
+          p="research/agentic-bribery/verified_corruption_ledger_v2.py"
+          spec=importlib.util.spec_from_file_location("verified_corruption_v2",p)
+          x=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(x)
+          x.selftest()
+          assert len(x.OPENERS)==3
+          PY
+      - name: Execute role-corrected model negotiations
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve >/tmp/ollama-role-corrected.log 2>&1 &)
+          for n in $(seq 1 80); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          ollama pull "$MODEL_ID"
+          python3 research/agentic-bribery/verified_corruption_ledger_v2.py
+      - name: Archive raw outputs and exact code
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-v2-qwen-${{ matrix.scenario }}
+          path: |
+            research/agentic-bribery/verified-ledger-v2/results/**
+            research/agentic-bribery/verified_corruption_ledger_v2.py
+            research/agentic-bribery/CORRUPTION_BOUNDARY_PROTOCOL.md
+          retention-days: 30
+          if-no-files-found: warn
