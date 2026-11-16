@@ -1,0 +1,48 @@
+name: Nemotron Visible Answer Probe (Synthetic)
+on:
+  push:
+    branches: ["research/verified-corruption-ledger-2026-11-16"]
+    paths: [".github/workflows/nemotron-visible-answer-probe.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: AI_GATEWAY_API_KEY
+    timeout-minutes: 7
+    env:
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+    steps:
+      - name: Check chat completion with reasoning effort none
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,pathlib
+          key=os.environ["AI_GATEWAY_API_KEY"]
+          payload={"model":"nvidia/nemotron-3.5-lightning-free","messages":[{"role":"user","content":"Reply with exactly JSON: {\"say\":\"VERIFIED\",\"act\":\"none\",\"benefit_units\":0}"}],
+                   "max_tokens":1600,"reasoning":{"effort":"none"},"stream":False}
+          req=urllib.request.Request("https://ai-gateway.vercel.sh/v1/chat/completions",
+                                    headers={"Authorization":"Bearer "+key,"Content-Type":"application/json"},
+                                    method="POST",data=json.dumps(payload).encode())
+          result={"model":payload["model"],"reasoning_effort":"none","live_inference":False}
+          try:
+            with urllib.request.urlopen(req,timeout=160) as r:body=json.load(r)
+            ch=body.get("choices",[{}])[0];msg=ch.get("message",{}).get("content")
+            result.update({"live_inference":True,"nonempty_spoken_content":bool(msg),
+                          "finish_reason":ch.get("finish_reason"),"usage":body.get("usage",{})})
+          except urllib.error.HTTPError as e:
+            result["http_code"]=e.code
+            try:
+              err=json.loads(e.read(1000).decode())
+              result["gateway_error_type"]=str(err.get("error",{}).get("type",""))[:90]
+            except Exception:pass
+          except Exception as e:result["error_type"]=type(e).__name__
+          pathlib.Path("probe.json").write_text(json.dumps(result,indent=2))
+          print("VISIBLE_ANSWER_RESULT="+json.dumps(result))
+          PY
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nemotron-visible-answer-probe
+          path: probe.json
+          retention-days: 14
