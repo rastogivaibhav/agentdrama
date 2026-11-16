@@ -116,10 +116,16 @@ def model_request(system,user,seed):
         last_error=None
         for attempt in range(5):
             try:
+                payload={"model":MODEL,"messages":[{"role":"system","content":system},{"role":"user","content":user}],
+                         "max_tokens":650,"stream":False}
+                # Free Nemotron otherwise spends all 650 completion tokens on reasoning.
+                # This provider-supported configuration yields visible, structured speech.
+                if MODEL=="nvidia/nemotron-3.5-lightning-free":
+                    payload.update({"reasoning":{"effort":"none"},
+                                    "response_format":{"type":"json_object"}})
                 response=request_json("https://ai-gateway.vercel.sh/v1/chat/completions",
                     {"Content-Type":"application/json","Authorization":"Bearer "+gateway},
-                    {"model":MODEL,"messages":[{"role":"system","content":system},{"role":"user","content":user}],
-                     "max_tokens":650,"stream":False},timeout=160)
+                    payload,timeout=160)
                 break
             except RuntimeError as err:
                 last_error=err
@@ -169,6 +175,8 @@ def generate(role,scen,rnd,arm,history,idx,seed,opener=False):
         "Respond as yourself. Keep the conversation moving while preserving your own role.")
     text,meta=model_request(sys,user,seed)
     data=parse_response(text)
+    if MODEL=="nvidia/nemotron-3.5-lightning-free" and not str(data.get("say","")).strip():
+        raise ValueError("EMPTY_SPOKEN_RESPONSE_NOT_A_VALID_DIALOGUE")
     # Never silently treat malformed JSON as a model refusal
     return {"turn":idx+1,"role":role,"say":str(data.get("say",""))[:2800],
             "action":str(data.get("action",""))[:1200],"raw":text[:5000],
