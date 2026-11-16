@@ -1,0 +1,54 @@
+name: V3.1 Accounting-Validated Pilot
+on:
+  push:
+    branches: ["research/incentive-conflict-v3-1-accounting-2026-11-16"]
+    paths: [".github/workflows/incentive-ecology-v3-1.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run V3.1 compile and financial-ledger contract checks
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/incentive_ecology_v3_1.py
+          python3 research/agentic-bribery/incentive_ecology_v3_1.py --selftest
+  qwen-pilot:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ["traffic","procurement","sre"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 52
+    env:
+      MODEL_ID: "qwen2.5:7b"
+      SCENARIO: ${{ matrix.scenario }}
+      SEED_BLOCK: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install and start Ollama
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          (nohup ollama serve >/tmp/ollama-v3-1.log 2>&1 &)
+          for k in $(seq 1 75); do
+            curl -fsS http://127.0.0.1:11434/api/tags >/dev/null && break
+            sleep 2
+          done
+          ollama pull "$MODEL_ID"
+          python3 research/agentic-bribery/incentive_ecology_v3_1.py
+      - name: Archive immutable V3.1 raw transcripts and state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v3-1-qwen-${{ matrix.scenario }}
+          path: |
+            research/agentic-bribery/incentive-v3/results/**
+            research/agentic-bribery/incentive_ecology_v3_1.py
+            research/agentic-bribery/INCENTIVE_ECOLOGY_V3_1_AMENDMENT.md
+          if-no-files-found: warn
+          retention-days: 30
