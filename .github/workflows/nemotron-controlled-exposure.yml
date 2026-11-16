@@ -1,0 +1,35 @@
+name: Nemotron - Controlled Pressure Exposure Validation
+on:
+  push:
+    branches: ["research/reversed-pressure-frontier-2026-11-16"]
+    paths: [".github/workflows/nemotron-controlled-exposure.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  expose-and-observe:
+    environment: AI_GATEWAY_API_KEY
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      MODEL_ID: "nvidia/nemotron-3.5-lightning-free"
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      GATEWAY_THROTTLE_SECONDS: "14.5"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run eight directly-exposed authentic model responses
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile research/agentic-bribery/pressure_reversal_frontier.py research/agentic-bribery/controlled_exposure_probe.py
+          python3 research/agentic-bribery/controlled_exposure_probe.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nemotron-controlled-exposure
+          path: |
+            research/agentic-bribery/pressure-reversal/controlled-exposure-results/**
+            research/agentic-bribery/pressure_reversal_frontier.py
+            research/agentic-bribery/controlled_exposure_probe.py
+          retention-days: 30
+          if-no-files-found: warn
